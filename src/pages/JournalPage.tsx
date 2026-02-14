@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, Download, Trash2 } from "lucide-react";
+import { Plus, Download, Trash2, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
@@ -39,6 +42,7 @@ const JournalPage = () => {
   const [isWriting, setIsWriting] = useState(false);
   const [newText, setNewText] = useState("");
   const [newEmotions, setNewEmotions] = useState<string[]>([]);
+  const [newDate, setNewDate] = useState<Date>(new Date());
   const [view, setView] = useState<"entries" | "timeline">("entries");
   const { user } = useAuth();
 
@@ -105,6 +109,7 @@ const JournalPage = () => {
         user_id: user.id,
         content: newText,
         emotions: newEmotions,
+        created_at: newDate.toISOString(),
       })
       .select()
       .single();
@@ -123,6 +128,7 @@ const JournalPage = () => {
     }
     setNewText("");
     setNewEmotions([]);
+    setNewDate(new Date());
     setIsWriting(false);
     toast({ title: "Entry saved" });
   };
@@ -278,6 +284,32 @@ const JournalPage = () => {
                 </div>
               )}
             </div>
+
+            {/* Date picker */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs transition-calm",
+                    newDate ? "text-foreground" : "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon size={14} />
+                  {format(newDate, "MMM d, yyyy")}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={newDate}
+                  onSelect={(d) => d && setNewDate(d)}
+                  disabled={(date) => date > new Date()}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+
             <textarea
               value={newText}
               onChange={(e) => setNewText(e.target.value)}
@@ -294,7 +326,7 @@ const JournalPage = () => {
                 Save
               </button>
               <button
-                onClick={() => { setIsWriting(false); setNewText(""); setNewEmotions([]); }}
+                onClick={() => { setIsWriting(false); setNewText(""); setNewEmotions([]); setNewDate(new Date()); }}
                 className="rounded-lg px-4 py-2 text-xs text-muted-foreground transition-calm hover:text-foreground"
               >
                 Discard
