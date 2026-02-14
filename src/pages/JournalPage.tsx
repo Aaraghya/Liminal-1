@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, Download } from "lucide-react";
+import { Plus, Download, Trash2 } from "lucide-react";
 import { format } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "@/hooks/use-toast";
 
 interface JournalEntry {
   id: string;
@@ -9,8 +12,6 @@ interface JournalEntry {
   emotions: string[];
   text: string;
 }
-
-const sampleEntries: JournalEntry[] = [];
 
 const emotionColors: Record<string, string> = {
   Calm: "bg-lavender/20 text-lavender",
@@ -30,33 +31,18 @@ const emotionColorMap: Record<string, string> = {
   Hopeful: "hsl(var(--periwinkle))",
 };
 
-const weeklyData = [
-  { day: "Mon", emotions: ["Calm"], score: 3 },
-  { day: "Tue", emotions: ["Overwhelmed", "Tired"], score: 5 },
-  { day: "Wed", emotions: ["Sad"], score: 2 },
-  { day: "Thu", emotions: ["Hopeful", "Grateful"], score: 6 },
-  { day: "Fri", emotions: ["Calm", "Grateful"], score: 4 },
-  { day: "Sat", emotions: ["Tired"], score: 3 },
-  { day: "Sun", emotions: ["Calm", "Hopeful"], score: 5 },
-];
-
-const monthlyData = [
-  { week: "Week 1", dominant: "Overwhelmed", count: 5, score: 5 },
-  { week: "Week 2", dominant: "Calm", count: 8, score: 3 },
-  { week: "Week 3", dominant: "Hopeful", count: 6, score: 4 },
-  { week: "Week 4", dominant: "Grateful", count: 7, score: 6 },
-];
-
 const maxScore = 7;
 
 const JournalPage = () => {
-  const [entries, setEntries] = useState<JournalEntry[]>(sampleEntries);
+  const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isWriting, setIsWriting] = useState(false);
   const [newText, setNewText] = useState("");
   const [newEmotions, setNewEmotions] = useState<string[]>([]);
   const [view, setView] = useState<"entries" | "timeline">("entries");
+  const { user } = useAuth();
 
-const quickEmotions = ["Calm", "Sad", "Grateful", "Overwhelmed", "Hopeful", "Tired"];
+  const quickEmotions = ["Calm", "Sad", "Grateful", "Overwhelmed", "Hopeful", "Tired"];
 
   const emotionExpander: Record<string, string[]> = {
     Calm: ["Peaceful", "Settled", "Centered", "Still"],
@@ -69,11 +55,34 @@ const quickEmotions = ["Calm", "Sad", "Grateful", "Overwhelmed", "Hopeful", "Tir
 
   const [expandedEmotion, setExpandedEmotion] = useState<string | null>(null);
 
+  // Fetch entries from database
+  useEffect(() => {
+    if (!user) return;
+    const fetchEntries = async () => {
+      const { data, error } = await supabase
+        .from("journal_entries")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+      if (!error && data) {
+        setEntries(
+          data.map((d) => ({
+            id: d.id,
+            date: format(new Date(d.created_at), "MMM d, yyyy"),
+            emotions: d.emotions || [],
+            text: d.content,
+          }))
+        );
+      }
+      setLoading(false);
+    };
+    fetchEntries();
+  }, [user]);
+
   const toggleEmotion = (e: string) => {
     setNewEmotions((prev) =>
       prev.includes(e) ? prev.filter((x) => x !== e) : [...prev, e]
     );
-    // Show expander when selecting, hide when deselecting
     if (!newEmotions.includes(e)) {
       setExpandedEmotion(e);
     } else {
@@ -88,25 +97,46 @@ const quickEmotions = ["Calm", "Sad", "Grateful", "Overwhelmed", "Hopeful", "Tir
     setExpandedEmotion(null);
   };
 
-  const saveEntry = () => {
-    if (!newText.trim()) return;
-    const entry: JournalEntry = {
-      id: Date.now().toString(),
-      date: format(new Date(), "MMM d, yyyy"),
-      emotions: newEmotions,
-      text: newText,
-    };
-    setEntries([entry, ...entries]);
+  const saveEntry = async () => {
+    if (!newText.trim() || !user) return;
+    const { data, error } = await supabase
+      .from("journal_entries")
+      .insert({
+        user_id: user.id,
+        content: newText,
+        emotions: newEmotions,
+      })
+      .select()
+      .single();
+    if (error) {
+      toast({ title: "Failed to save entry", variant: "destructive" });
+      return;
+    }
+    if (data) {
+      const entry: JournalEntry = {
+        id: data.id,
+        date: format(new Date(data.created_at), "MMM d, yyyy"),
+        emotions: data.emotions || [],
+        text: data.content,
+      };
+      setEntries([entry, ...entries]);
+    }
     setNewText("");
     setNewEmotions([]);
     setIsWriting(false);
+    toast({ title: "Entry saved" });
+  };
+
+  const deleteEntry = async (id: string) => {
+    const { error } = await supabase.from("journal_entries").delete().eq("id", id);
+    if (!error) {
+      setEntries((prev) => prev.filter((e) => e.id !== id));
+      toast({ title: "Entry deleted" });
+    }
   };
 
   const exportEntry = (entry: JournalEntry) => {
-    const displayDate = entry.date === "Today" || entry.date === "Yesterday"
-      ? format(new Date(), "MMM d, yyyy")
-      : entry.date;
-    const content = `Date: ${displayDate}\nEmotions: ${entry.emotions.join(", ")}\n\n${entry.text}`;
+    const content = `Date: ${entry.date}\nEmotions: ${entry.emotions.join(", ")}\n\n${entry.text}`;
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -115,6 +145,28 @@ const quickEmotions = ["Calm", "Sad", "Grateful", "Overwhelmed", "Hopeful", "Tir
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  // Build timeline data from actual entries
+  const buildWeeklyData = () => {
+    const now = new Date();
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const weekData: { day: string; emotions: string[]; score: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dayEntries = entries.filter((e) => e.date === format(d, "MMM d, yyyy"));
+      const allEmotions = dayEntries.flatMap((e) => e.emotions);
+      weekData.push({
+        day: days[d.getDay()],
+        emotions: allEmotions.length > 0 ? allEmotions : [],
+        score: dayEntries.length,
+      });
+    }
+    return weekData;
+  };
+
+  const weeklyData = buildWeeklyData();
+  const weekMaxScore = Math.max(...weeklyData.map((d) => d.score), 1);
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-10 md:py-16">
@@ -251,7 +303,11 @@ const quickEmotions = ["Calm", "Sad", "Grateful", "Overwhelmed", "Hopeful", "Tir
           </motion.div>
         )}
 
-        {view === "entries" ? (
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        ) : view === "entries" ? (
           entries.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <p className="font-display text-base font-bold text-foreground">No entries yet.</p>
@@ -266,12 +322,22 @@ const quickEmotions = ["Calm", "Sad", "Grateful", "Overwhelmed", "Hopeful", "Tir
               >
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">{entry.date}</span>
-                  <button
-                    onClick={() => exportEntry(entry)}
-                    className="text-muted-foreground transition-calm hover:text-foreground"
-                  >
-                    <Download size={14} />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => exportEntry(entry)}
+                      className="rounded-md p-1.5 text-muted-foreground transition-calm hover:text-foreground"
+                      aria-label="Export"
+                    >
+                      <Download size={14} />
+                    </button>
+                    <button
+                      onClick={() => deleteEntry(entry.id)}
+                      className="rounded-md p-1.5 text-muted-foreground transition-calm hover:bg-destructive/10 hover:text-destructive"
+                      aria-label="Delete"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
                 <div className="mb-2 flex flex-wrap gap-1">
                   {entry.emotions.map((e) => (
@@ -304,7 +370,7 @@ const quickEmotions = ["Calm", "Sad", "Grateful", "Overwhelmed", "Hopeful", "Tir
               <p className="mb-4 text-[11px] text-muted-foreground">Daily emotional presence</p>
               <div className="flex items-end gap-2">
                 {weeklyData.map((d) => {
-                  const height = (d.score / maxScore) * 100;
+                  const height = (d.score / weekMaxScore) * 100;
                   const primaryEmotion = d.emotions[0];
                   const color = emotionColorMap[primaryEmotion] || "hsl(var(--primary))";
                   return (
@@ -313,20 +379,21 @@ const quickEmotions = ["Calm", "Sad", "Grateful", "Overwhelmed", "Hopeful", "Tir
                         <div
                           className="w-full rounded-t-md transition-all duration-300 group-hover:opacity-80"
                           style={{
-                            height: `${Math.max(height, 12)}px`,
-                            backgroundColor: color,
-                            opacity: 0.7,
+                            height: `${d.score > 0 ? Math.max(height, 12) : 4}px`,
+                            backgroundColor: d.score > 0 ? color : "hsl(var(--muted))",
+                            opacity: d.score > 0 ? 0.7 : 0.3,
                           }}
                         />
-                        {/* Tooltip on hover */}
-                        <div className="pointer-events-none absolute -top-16 left-1/2 z-10 hidden -translate-x-1/2 rounded-md border border-border bg-card px-2 py-1.5 shadow-md group-hover:block">
-                          <p className="whitespace-nowrap text-[10px] font-medium text-foreground">
-                            {d.emotions.join(", ")}
-                          </p>
-                          <p className="text-[9px] text-muted-foreground">
-                            Intensity: {d.score}/{maxScore}
-                          </p>
-                        </div>
+                        {d.emotions.length > 0 && (
+                          <div className="pointer-events-none absolute -top-16 left-1/2 z-10 hidden -translate-x-1/2 rounded-md border border-border bg-card px-2 py-1.5 shadow-md group-hover:block">
+                            <p className="whitespace-nowrap text-[10px] font-medium text-foreground">
+                              {d.emotions.join(", ")}
+                            </p>
+                            <p className="text-[9px] text-muted-foreground">
+                              {d.score} {d.score === 1 ? "entry" : "entries"}
+                            </p>
+                          </div>
+                        )}
                       </div>
                       <span className="text-[10px] text-muted-foreground">{d.day}</span>
                     </div>
@@ -336,50 +403,6 @@ const quickEmotions = ["Calm", "Sad", "Grateful", "Overwhelmed", "Hopeful", "Tir
               {/* Legend */}
               <div className="mt-4 flex flex-wrap gap-2">
                 {Array.from(new Set(weeklyData.flatMap((d) => d.emotions))).map((e) => (
-                  <div key={e} className="flex items-center gap-1">
-                    <div
-                      className="h-2 w-2 rounded-full"
-                      style={{ backgroundColor: emotionColorMap[e] || "hsl(var(--primary))" }}
-                    />
-                    <span className="text-[10px] text-muted-foreground">{e}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Last Month */}
-            <div className="rounded-lg border border-border bg-card p-4">
-              <h3 className="mb-1 font-display text-sm font-bold text-foreground">Last Month</h3>
-              <p className="mb-4 text-[11px] text-muted-foreground">Weekly emotional patterns</p>
-              <div className="space-y-3">
-                {monthlyData.map((w) => {
-                  const width = (w.score / maxScore) * 100;
-                  const color = emotionColorMap[w.dominant] || "hsl(var(--primary))";
-                  return (
-                    <div key={w.week}>
-                      <div className="mb-1 flex items-center justify-between">
-                        <span className="text-[11px] text-muted-foreground">{w.week}</span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {w.dominant} · {w.count} entries
-                        </span>
-                      </div>
-                      <div className="h-5 w-full overflow-hidden rounded-md bg-secondary">
-                        <div
-                          className="h-full rounded-md transition-all duration-500"
-                          style={{
-                            width: `${width}%`,
-                            backgroundColor: color,
-                            opacity: 0.75,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {/* Legend */}
-              <div className="mt-4 flex flex-wrap gap-2">
-                {Array.from(new Set(monthlyData.map((w) => w.dominant))).map((e) => (
                   <div key={e} className="flex items-center gap-1">
                     <div
                       className="h-2 w-2 rounded-full"
