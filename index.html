@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A mental wellness platform designed for emotional expression, grounding, and quiet support.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Roboto:ital,wght@0,300;0,400;0,500;1,300;1,400&display=swap" rel="stylesheet">
+    <title>Liminal</title>
+    <script>
+      // Default to dark mode
+      if (!localStorage.getItem('theme')) {
+        document.documentElement.classList.add('dark');
+      } else if (localStorage.getItem('theme') === 'dark') {
+        document.documentElement.classList.add('dark');
+      }
+    </script>
+    <!-- TODO: Set the document title to the name of your application -->
+    <title>Liminal</title>
+    <meta name="description" content="Liminal — an emotionally safe support platform to understand, express, and connect." />
+    <meta name="author" content="Liminal" />
+
+    
+    
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/23d7a0a0-1f09-49fc-b098-2aab2995989e/id-preview-fbc210a4--b2ed6e38-3c28-46e6-be62-cc4ac6e05421.lovable.app-1771008142121.png">
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@Lovable" />
+    <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/23d7a0a0-1f09-49fc-b098-2aab2995989e/id-preview-fbc210a4--b2ed6e38-3c28-46e6-be62-cc4ac6e05421.lovable.app-1771008142121.png">
+    <meta property="og:title" content="Liminal">
+  <meta name="twitter:title" content="Liminal">
+  <meta property="og:description" content="A mental wellness platform designed for emotional expression, grounding, and quiet support.">
+  <meta name="twitter:description" content="A mental wellness platform designed for emotional expression, grounding, and quiet support.">
+</head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
