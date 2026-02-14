@@ -23,19 +23,11 @@ Liminal provides a quiet digital space where users can process emotions, express
 8) Dark and light theme support
 
 ## Tech Stack
-1) React 18 w/ TypeScript
-2) Vite build system
-3) Tailwind CSS w/ shadcn/UI - styling
-4) Framer Motion - animations
-5) PostgreSQL - database
-6) Row level security - data protection
-7) Three.js with @react-three/fiber - visual effects
-8) Server-Sent Events - streaming AI responses
-9) Lovable Cloud Auth - authentication
-10) Lovable Cloud Storage - file storage
-11) Deno serverless Edge Functions
-12) TanStack React Query - data fetching
-13) Lovable AI (OpenAI models)
+1)Frontend: React + TypeScript, Vite, Tailwind, Framer Motion
+2) Backend: Supabase (PostgreSQL, Auth, Storage), Serverless Edge Functions
+3) AI: OpenAI-compatible conversational models with SSE streaming
+4) Data: TanStack React Query
+5) Security: JWT Authentication + Row Level Security
 
 
 ## Architecture: 
